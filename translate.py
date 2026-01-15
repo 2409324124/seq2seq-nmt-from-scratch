@@ -19,8 +19,13 @@ input_lang, output_lang, _ = prepare_data(max_length=25)  # 只用词表
 encoder = EncoderRNN(input_lang.n_words, hidden_size).to(device)
 decoder = AttnDecoderRNN(hidden_size, output_lang.n_words).to(device)
 
-encoder.load_state_dict(torch.load("encoder_epoch10.pt", map_location=device))
-decoder.load_state_dict(torch.load("decoder_epoch10.pt", map_location=device))
+# 加载模型（推荐加 weights_only=True 消除警告）
+encoder.load_state_dict(
+    torch.load("encoder_epoch10.pt", map_location=device, weights_only=True)
+)
+decoder.load_state_dict(
+    torch.load("decoder_epoch10.pt", map_location=device, weights_only=True)
+)
 
 encoder.eval()
 decoder.eval()
@@ -28,7 +33,7 @@ decoder.eval()
 def translate_sentence(sentence):
     sentence = normalize_string(sentence)
     tokens = tokenize_de(sentence)
-    indices = [input_lang.word2index.get(w, 2) for w in tokens]  # PAD=2
+    indices = [input_lang.word2index.get(w, 2) for w in tokens]
 
     input_tensor = torch.tensor([input_lang.word2index["<SOS>"]] + indices + [input_lang.word2index["<EOS>"]]).unsqueeze(0).to(device)
 
@@ -39,9 +44,9 @@ def translate_sentence(sentence):
         decoder_hidden = encoder_hidden
 
         translated = []
-        attentions = []
+        attentions = []  # list of numpy
 
-        for _ in range(50):  # 最大长度 50
+        for _ in range(50):
             output, decoder_hidden, attn_weights = decoder(decoder_input, decoder_hidden, encoder_outputs)
             attentions.append(attn_weights.squeeze(0).cpu().numpy())
 
@@ -51,6 +56,24 @@ def translate_sentence(sentence):
 
             translated.append(output_lang.index2word[topi.item()])
             decoder_input = topi.detach()
+
+    # 注意力热图（优化版）
+    attentions = torch.tensor(attentions).squeeze(1).cpu().numpy()  # 如果报 slow，可改 torch.stack
+
+    fig, ax = plt.subplots()
+    cax = ax.matshow(attentions, cmap='bone')
+    fig.colorbar(cax)
+
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    ax.set_xticklabels([''] + tokens + ['<EOS>'], rotation=90)
+    ax.set_yticklabels([''] + translated + ['<EOS>'])
+
+    plt.show()
+
+    return ' '.join(translated)
+
 
     # 画注意力热图
     attentions = torch.tensor(attentions).squeeze(1).cpu().numpy()  # (tgt_len, src_len)

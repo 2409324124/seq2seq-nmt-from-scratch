@@ -1,0 +1,7 @@
+# 忽略所有 .pt 和 .pth 模型文件（防止上传大文件）
+*.pt
+*.pth
+
+# 但强制保留 epoch 10 的模型（用 ! 取反忽略）
+!encoder_epoch10.pt
+!decoder_epoch10.pt
