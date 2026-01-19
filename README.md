@@ -19,7 +19,7 @@
 **最佳验证 Loss**：4.3435（早停触发）
 
 ## 注意力热图示例（Greedy + Source Reversed）
-![Attention Heatmap](attention_heatmap_example)
+![Attention Heatmap](attention_heatmap_example.jpeg)
 
 - 横轴：德语源句（已反转）
 - 纵轴：生成的英语句子
