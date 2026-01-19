@@ -87,8 +87,8 @@ def prepare_data(max_length=25, min_freq=2):
         if len(de_tokens) > max_length or len(en_tokens) > max_length:
             continue
 
-        pairs.append((de_tokens, en_tokens))
-        input_lang.add_sentence(de_tokens)
+        pairs.append((list(reversed(de_tokens)), en_tokens))  # ← 关键！反转德语句子
+        input_lang.add_sentence(list(reversed(de_tokens)))    # 也要反转加进词表
         output_lang.add_sentence(en_tokens)
 
     # 可选：过滤低频词（这里先不删，只打印）
