@@ -42,6 +42,10 @@
 欢迎 fork / star！项目记录了完整的 debug 过程，从环境坑到过拟合分析。
 
 感谢 PyTorch 官方教程 + bentrevett/pytorch-seq2seq 仓库的启发。
-——————2026.1.26更新——————
+
+
+——————**2026.1.26更新**——————
+
+
 Bilibili视频已更新：[text](https://www.bilibili.com/video/BV1ezzxBFEA4/?spm_id_from=333.1387.homepage.video_card.click&vd_source=46eef21c98a84797a917421ea20dc08a)
 具体的安装步骤和训练流程会逐步以视频形式更新。
