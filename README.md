@@ -27,7 +27,7 @@
 
 ## 实时翻译界面（Gradio）
 运行 `translate_gradio.py` 即可启动浏览器界面，支持实时输入德语句子 → 输出英语翻译。（已经部署在huggingface界面）
-[text](https://huggingface.co/spaces/xu2409324124/lstm-translator)
+[huggingface](https://huggingface.co/spaces/xu2409324124/lstm-translator)
 ## 最终模型
 - 最佳 checkpoint：**Epoch35**（BLEU 值为56.3）
 - 权重文件：`encoder_lstm_epoch35` / `decoder_lstm_epoch35`（上传到higgingface了，如果您想自己训练一次的话，train文件在windows环境下是完全能跑的）
@@ -47,5 +47,5 @@
 ——————**2026.1.26更新**——————
 
 
-Bilibili视频已更新：[text](https://www.bilibili.com/video/BV1ezzxBFEA4/?spm_id_from=333.1387.homepage.video_card.click&vd_source=46eef21c98a84797a917421ea20dc08a)
+Bilibili视频已更新：[bilibili](https://www.bilibili.com/video/BV1ezzxBFEA4/?spm_id_from=333.1387.homepage.video_card.click&vd_source=46eef21c98a84797a917421ea20dc08a)
 具体的安装步骤和训练流程会逐步以视频形式更新。
