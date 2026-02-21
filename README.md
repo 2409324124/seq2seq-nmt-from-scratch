@@ -195,7 +195,7 @@ $$
 
   上下文向量是源隐藏状态的加权和，直接用于 decoder 的下一步计算。
 
-- **融合到 Decoder**（input feeding 方式，你的实现中采用）：
+- **融合到 Decoder**（input feeding 方式，我的实现中采用）：
 
 ```python
 lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)
