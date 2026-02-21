@@ -231,7 +231,7 @@ lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)
 
 - **加性 vs. 其他注意力**：
   - 与 Luong 的点积注意力（dot-product）不同，加性使用 tanh + 线性融合，参数量更大、更灵活，尤其适合小数据集如 Multi30k。
-  - 计算复杂度：O(src_len × hidden²)，对你的 hidden=256 + RTX 4060 完全可接受。
+  - 计算复杂度：O(src_len × hidden²)，对 hidden=256 + RTX 4060 完全可接受。
 
 - **在本模型中的具体作用**：
   - 提升翻译质量：注意力权重捕捉词级对齐（e.g. 德语名词 → 英语对应词）。
