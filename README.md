@@ -166,40 +166,39 @@ Happy translating! 🚀
 
 #### 2. 计算公式（核心数学细节）
 
-Bahdanau Attention 使用加法融合 query 和 keys 的投影，严格遵循原始论文：
+Bahdanau Attention 使用加法融合 query 和 keys 的投影，严格遵循原始论文（Bahdanau et al., 2015）。
 
-- **能量计算（Energy）**：
-
-$$
-e_{t,i} = v_a^T \tanh(W_a \cdot h_{dec}^{t-1} + U_a \cdot h_{enc}^i)
-$$
-
-  - $h_{dec}^{t-1}$：Query（decoder 上一时刻隐藏状态）
-  - $h_{enc}^i$：Keys（encoder 第 i 个隐藏状态，双向维度 *2）
-  - $W_a, U_a$：投影线性层
-  - $v_a$：分数线性层
-
-- **注意力权重（Weights）**：
+- **能量计算（Alignment/Energy score）**：
 
 $$
-\alpha_{t,i} = \frac{\exp(e_{t,i})}{\sum_{j=1}^{src\_len} \exp(e_{t,j})}
+e_{ij} = v_a^\top \tanh \left( W_a s_{i-1} + U_a h_j \right)
 $$
 
-  softmax 归一化
+  - $s_{i-1}$：上一时刻 decoder 的隐藏状态（query）
+  - $h_j$：encoder 第 j 个隐藏状态（annotation/key）
+  - $W_a, U_a$：可学习的投影矩阵
+  - $v_a$：可学习的权重向量（列向量，转置后与 tanh 结果点积）
 
-- **上下文向量（Context）**：
+- **注意力权重（Alignment weights）**：
 
 $$
-c_t = \sum_{i=1}^{src\_len} \alpha_{t,i} \cdot h_{enc}^i
+\alpha_{ij} = \frac{\exp(e_{ij})}{\sum_{k=1}^{T_x} \exp(e_{ik})}
 $$
 
-  使用 `torch.bmm` 实现批量加权求和
+  对所有源位置的能量分数进行 softmax 归一化，确保权重和为 1。
 
-- **融合到 Decoder**（input feeding）：
+- **上下文向量（Context vector）**：
+
+$$
+c_i = \sum_{j=1}^{T_x} \alpha_{ij} h_j
+$$
+
+  上下文向量是源隐藏状态的加权和，直接用于 decoder 的下一步计算。
+
+- **融合到 Decoder**（input feeding 方式，你的实现中采用）：
 
 ```python
 lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)
-#### 3. 代码细节（基于 models.py）
 
 注意力模块作为一个独立的 `BahdanauAttention` 类，集成在 `AttnDecoderLSTM` 的 forward 中：
 
