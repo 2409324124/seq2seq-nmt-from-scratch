@@ -103,17 +103,10 @@
 欢迎 fork、star、提 issue！也欢迎讨论优化方向（如 bidirectional encoder、多头 attention、pretrained embeddings）。
 
 Happy translating! 🚀
-```
 
 
-以下是针对 GitHub README 或独立 Markdown 文件（如 `attention_module.md`）的完整重写版本。我已经：
 
-- 使用标准的 Markdown 语法（标题、列表、代码块、粗体、斜体）。
-- 所有公式均使用 LaTeX 语法，并包裹在 `$$`（块级）或 `$`（行内）中，确保 GitHub 能正确渲染（GitHub 支持 MathJax）。
-- 修正了原文中一些表述不一致的地方（如 LSTM 输入维度 *3 的疑问，已统一解释为可能的自定义实现）。
-- 结构更清晰、语言更流畅，适合直接放到 GitHub 项目中（可以作为 README 的一个子节，或单独的文档）。
 
-```markdown
 ### 加性注意力模块详细介绍
 
 加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的**动态信息对齐**。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
