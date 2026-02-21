@@ -137,6 +137,36 @@ Happy translating! 🚀
 - 左侧：Encoder outputs → Linear (Ua) → Add（与 Linear wa 来自 previous decoder hidden）→ σ (softmax) → weighted sum → context
 - 右侧：Context + word embedding → AttentionConcat → LSTM Decoder → Linear → Output Logits
 
+### 加性注意力模块详细介绍
+
+加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的**动态信息对齐**。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
+
+#### 1. 整体流程
+
+- **输入**：
+  - **Query**：解码器的上一个隐藏状态（previous hidden state），形状：`(batch_size, hidden_size)`
+  - **Keys / Values**：编码器的所有输出序列（`encoder_outputs`），形状：`(batch_size, src_len, hidden_size * 2)`  
+    （因为编码器是**双向 LSTM**，隐藏维度翻倍）
+
+- **计算步骤**：
+  1. 计算每个源词的“能量分数”（energy scores）：使用线性层分别投影 query 和 keys，然后加法融合 + tanh 激活。
+  2. 通过另一个线性层得到原始分数（scores）。
+  3. softmax 归一化得到注意力权重（attention weights）。
+  4. 加权求和得到上下文向量（context vector）。
+  5. 将 context 与当前输入 embedding 拼接，作为 decoder LSTM 的输入（input feeding 方式）。
+
+- **输出**：
+  - **Context vector**：形状 `(batch_size, hidden_size)`  
+    （虽然 encoder 是双向，但 context 通常被投影回原始 hidden_size）
+  - **Attention weights**：形状 `(batch_size, src_len)`  
+    （用于后续热图可视化或对齐分析）
+
+这个流程在解码的**每一步**（time step）都会执行，让模型动态“关注”源句中最相关的信息，而不是仅依赖编码器的最终隐藏状态。
+
+架构图（`model_architecture_bahdanau_lstm.png`）清晰展示了这一过程：
+- 左侧：Encoder outputs → Linear (Ua) → Add（与 Linear wa 来自 previous decoder hidden）→ σ (softmax) → weighted sum → context
+- 右侧：Context + word embedding → AttentionConcat → LSTM Decoder → Linear → Output Logits
+
 #### 2. 计算公式（核心数学细节）
 
 Bahdanau Attention 被称为“加性”（additive），因为它使用加法融合 query 和 keys 的投影，而不是点积或其他方式。实现严格遵循原始论文：
@@ -145,6 +175,7 @@ Bahdanau Attention 被称为“加性”（additive），因为它使用加法�
   $$
   e_{t,i} = v_a^T \tanh(W_a \cdot h_{dec}^{t-1} + U_a \cdot h_{enc}^i)
   $$
+
   - $h_{dec}^{t-1}$：Query，即 decoder 的上一时刻隐藏状态，形状 `(batch, hidden_size)`
   - $h_{enc}^i$：Keys，即 encoder 第 i 个输出隐藏状态，形状 `(batch, src_len, hidden_size * 2)`（双向）
   - $W_a$：线性层，将 query 投影到 attention_size（通常等于 hidden_size）
@@ -154,23 +185,21 @@ Bahdanau Attention 被称为“加性”（additive），因为它使用加法�
 
 - **注意力权重（Weights）**：
   $$
-  \alpha_{t,i} = \frac{\exp(e_{t,i})}{\sum_{j=1}^{src_len} \exp(e_{t,j})}
+  \alpha_{t,i} = \frac{\exp(e_{t,i})}{\sum_{j=1}^{src\_len} \exp(e_{t,j})}
   $$
-  - 对 energy 进行 softmax 归一化，确保权重和为 1
+
+  对 energy 进行 softmax 归一化，确保权重和为 1
 
 - **上下文向量（Context）**：
   $$
-  c_t = \sum_{i=1}^{src_len} \alpha_{t,i} \cdot h_{enc}^i
+  c_t = \sum_{i=1}^{src\_len} \alpha_{t,i} \cdot h_{enc}^i
   $$
-  - 实际使用 `torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)` 实现批量矩阵乘法
+
+  实际使用 `torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)` 实现批量矩阵乘法
 
 - **融合到 Decoder**：
   ```python
   lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)  # (batch, 1, hidden + hidden) = (batch, 1, hidden*2)
-  ```
-  注意：LSTM 输入维度为 `hidden_size * 3` 的情况，可能来自自定义实现（如额外特征拼接），或 encoder 输出与 context 的维度处理方式不同。实际代码中 context 通常被投影回 `hidden_size`，cat 后为 `hidden*2`。
-
-注意力计算本身没有额外 dropout，以保持分数稳定性；但 embedding 层有 dropout。
 
 #### 3. 代码细节（基于 models.py）
 
