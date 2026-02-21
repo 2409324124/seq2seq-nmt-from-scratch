@@ -139,29 +139,26 @@ Happy translating! 🚀
 
 ### 加性注意力模块详细介绍
 
-加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的**动态信息对齐**。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
+加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的动态信息对齐。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
 
 #### 1. 整体流程
 
 - **输入**：
-  - **Query**：解码器的上一个隐藏状态（previous hidden state），形状：`(batch_size, hidden_size)`
-  - **Keys / Values**：编码器的所有输出序列（`encoder_outputs`），形状：`(batch_size, src_len, hidden_size * 2)`  
-    （因为编码器是**双向 LSTM**，隐藏维度翻倍）
+  - **Query**：解码器的上一个隐藏状态，形状：`(batch_size, hidden_size)`
+  - **Keys / Values**：编码器的所有输出序列（`encoder_outputs`），形状：`(batch_size, src_len, hidden_size * 2)`（双向 LSTM）
 
 - **计算步骤**：
-  1. 计算每个源词的“能量分数”（energy scores）：使用线性层分别投影 query 和 keys，然后加法融合 + tanh 激活。
-  2. 通过另一个线性层得到原始分数（scores）。
-  3. softmax 归一化得到注意力权重（attention weights）。
-  4. 加权求和得到上下文向量（context vector）。
-  5. 将 context 与当前输入 embedding 拼接，作为 decoder LSTM 的输入（input feeding 方式）。
+  1. 计算能量分数：线性投影 query 和 keys，加法融合 + tanh 激活。
+  2. 通过线性层得到原始分数。
+  3. softmax 归一化得到注意力权重。
+  4. 加权求和得到上下文向量。
+  5. 将上下文向量与当前输入 embedding 拼接，输入 decoder LSTM。
 
 - **输出**：
-  - **Context vector**：形状 `(batch_size, hidden_size)`  
-    （虽然 encoder 是双向，但 context 通常被投影回原始 hidden_size）
-  - **Attention weights**：形状 `(batch_size, src_len)`  
-    （用于后续热图可视化或对齐分析）
+  - **Context vector**：形状 `(batch_size, hidden_size)`
+  - **Attention weights**：形状 `(batch_size, src_len)`（用于热图可视化）
 
-这个流程在解码的**每一步**（time step）都会执行，让模型动态“关注”源句中最相关的信息，而不是仅依赖编码器的最终隐藏状态。
+这个流程在解码的每一步（time step）都会执行，让模型动态关注源句中最相关的信息。
 
 架构图（`model_architecture_bahdanau_lstm.png`）清晰展示了这一过程：
 - 左侧：Encoder outputs → Linear (Ua) → Add（与 Linear wa 来自 previous decoder hidden）→ σ (softmax) → weighted sum → context
@@ -169,38 +166,39 @@ Happy translating! 🚀
 
 #### 2. 计算公式（核心数学细节）
 
-Bahdanau Attention 被称为“加性”（additive），因为它使用加法融合 query 和 keys 的投影，而不是点积或其他方式。实现严格遵循原始论文：
+Bahdanau Attention 使用加法融合 query 和 keys 的投影，严格遵循原始论文：
 
 - **能量计算（Energy）**：
-  $$
-  e_{t,i} = v_a^T \tanh(W_a \cdot h_{dec}^{t-1} + U_a \cdot h_{enc}^i)
-  $$
 
-  - $h_{dec}^{t-1}$：Query，即 decoder 的上一时刻隐藏状态，形状 `(batch, hidden_size)`
-  - $h_{enc}^i$：Keys，即 encoder 第 i 个输出隐藏状态，形状 `(batch, src_len, hidden_size * 2)`（双向）
-  - $W_a$：线性层，将 query 投影到 attention_size（通常等于 hidden_size）
-  - $U_a$：线性层，将 keys 投影到 attention_size
-  - $v_a$：线性层（无 bias），将 tanh 结果投影到标量分数
-  - 结果：energy 是一个 `(batch, src_len)` 的分数矩阵，表示当前 query 与每个源词的相关度
+$$
+e_{t,i} = v_a^T \tanh(W_a \cdot h_{dec}^{t-1} + U_a \cdot h_{enc}^i)
+$$
+
+  - $h_{dec}^{t-1}$：Query（decoder 上一时刻隐藏状态）
+  - $h_{enc}^i$：Keys（encoder 第 i 个隐藏状态，双向维度 *2）
+  - $W_a, U_a$：投影线性层
+  - $v_a$：分数线性层
 
 - **注意力权重（Weights）**：
-  $$
-  \alpha_{t,i} = \frac{\exp(e_{t,i})}{\sum_{j=1}^{src\_len} \exp(e_{t,j})}
-  $$
 
-  对 energy 进行 softmax 归一化，确保权重和为 1
+$$
+\alpha_{t,i} = \frac{\exp(e_{t,i})}{\sum_{j=1}^{src\_len} \exp(e_{t,j})}
+$$
+
+  softmax 归一化
 
 - **上下文向量（Context）**：
-  $$
-  c_t = \sum_{i=1}^{src\_len} \alpha_{t,i} \cdot h_{enc}^i
-  $$
 
-  实际使用 `torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)` 实现批量矩阵乘法
+$$
+c_t = \sum_{i=1}^{src\_len} \alpha_{t,i} \cdot h_{enc}^i
+$$
 
-- **融合到 Decoder**：
-  ```python
-  lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)  # (batch, 1, hidden + hidden) = (batch, 1, hidden*2)
+  使用 `torch.bmm` 实现批量加权求和
 
+- **融合到 Decoder**（input feeding）：
+
+```python
+lstm_input = torch.cat((embedded, context.unsqueeze(1)), dim=2)
 #### 3. 代码细节（基于 models.py）
 
 注意力模块作为一个独立的 `BahdanauAttention` 类，集成在 `AttnDecoderLSTM` 的 forward 中：
