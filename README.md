@@ -106,37 +106,6 @@ Happy translating! 🚀
 
 
 
-
-### 加性注意力模块详细介绍
-
-加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的**动态信息对齐**。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
-
-#### 1. 整体流程
-
-- **输入**：
-  - **Query**：解码器的上一个隐藏状态（previous hidden state），形状：`(batch_size, hidden_size)`
-  - **Keys / Values**：编码器的所有输出序列（`encoder_outputs`），形状：`(batch_size, src_len, hidden_size * 2)`  
-    （因为编码器是**双向 LSTM**，隐藏维度翻倍）
-
-- **计算步骤**：
-  1. 计算每个源词的“能量分数”（energy scores）：使用线性层分别投影 query 和 keys，然后加法融合 + tanh 激活。
-  2. 通过另一个线性层得到原始分数（scores）。
-  3. softmax 归一化得到注意力权重（attention weights）。
-  4. 加权求和得到上下文向量（context vector）。
-  5. 将 context 与当前输入 embedding 拼接，作为 decoder LSTM 的输入（input feeding 方式）。
-
-- **输出**：
-  - **Context vector**：形状 `(batch_size, hidden_size)`  
-    （虽然 encoder 是双向，但 context 通常被投影回原始 hidden_size）
-  - **Attention weights**：形状 `(batch_size, src_len)`  
-    （用于后续热图可视化或对齐分析）
-
-这个流程在解码的**每一步**（time step）都会执行，让模型动态“关注”源句中最相关的信息，而不是仅依赖编码器的最终隐藏状态。
-
-架构图（`model_architecture_bahdanau_lstm.png`）清晰展示了这一过程：
-- 左侧：Encoder outputs → Linear (Ua) → Add（与 Linear wa 来自 previous decoder hidden）→ σ (softmax) → weighted sum → context
-- 右侧：Context + word embedding → AttentionConcat → LSTM Decoder → Linear → Output Logits
-
 ### 加性注意力模块详细介绍
 
 加性注意力模块（Additive Attention，也称 **Bahdanau Attention**）是整个 Seq2Seq 架构的核心组件之一，实现了编码器（Encoder）和解码器（Decoder）之间的动态信息对齐。它基于 2015 年 Bahdanau 等人的经典论文《Neural Machine Translation by Jointly Learning to Align and Translate》，是早期神经机器翻译（NMT）中的标志性机制。
