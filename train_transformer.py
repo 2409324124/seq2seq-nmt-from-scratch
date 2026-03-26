@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import time
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -23,6 +24,7 @@ dropout = 0.1
 batch_size = 64
 epochs = 50
 learning_rate = 0.0001
+patience = 3  # 早停阈值
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"使用设备: {device}")
 
@@ -48,7 +50,7 @@ optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.98), 
 criterion = nn.CrossEntropyLoss(ignore_index=2, label_smoothing=0.1) # 2 是 PAD 的索引
 
 # ------------------- 混合精度训练 -------------------
-scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
+scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
 
 train_loss_history = []
 val_loss_history = []
@@ -69,8 +71,8 @@ def validate():
             src_padding_mask = (src == 2) # PAD 索引
             tgt_padding_mask = (tgt_input == 2)
             
-            with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
-                output = model(src, tgt_input, src_padding_mask=src_padding_mask, tgt_padding_mask=tgt_padding_mask)
+            with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
+                output = model(src, tgt_input, src_padding_mask=src_padding_mask, tgt_padding_mask=tgt_padding_mask, memory_key_padding_mask=src_padding_mask)
                 loss = criterion(output.reshape(-1, output.shape[-1]), tgt_output.reshape(-1))
             
             total_val_loss += loss.item()
@@ -92,8 +94,8 @@ def train_step(src, tgt):
     
     optimizer.zero_grad()
     
-    with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
-        output = model(src, tgt_input, src_padding_mask=src_padding_mask, tgt_padding_mask=tgt_padding_mask)
+    with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
+        output = model(src, tgt_input, src_padding_mask=src_padding_mask, tgt_padding_mask=tgt_padding_mask, memory_key_padding_mask=src_padding_mask)
         # CrossEntropyLoss 期望输入维度为 (batch * seq_len, vocab_size)
         loss = criterion(output.reshape(-1, output.shape[-1]), tgt_output.reshape(-1))
     
@@ -112,6 +114,7 @@ def train_step(src, tgt):
 
 # ------------------- 主训练循环 -------------------
 best_val_loss = float('inf')
+patience_counter = 0
 start_time = time.time()
 
 for epoch in range(1, epochs + 1):
@@ -133,10 +136,32 @@ for epoch in range(1, epochs + 1):
     
     print(f"Epoch {epoch} 完成 | 训练 Loss: {avg_train_loss:.4f} | 验证 Loss: {avg_val_loss:.4f} | 时间: {time.time() - start_time:.0f}s")
     
+    # 保存滚动 Checkpoint (保留最近3个)
+    ckpt_name = f"transformer_epoch_{epoch}.pt"
+    torch.save(model.state_dict(), ckpt_name)
+    
+    # 每 5 轮存一个永久里程碑
+    if epoch % 5 == 0:
+        import shutil
+        milestone = f"transformer_checkpoint_E{epoch}.pt"
+        shutil.copy2(ckpt_name, milestone)
+        print(f"🏛️ 发现存档点！已保存永久里程碑: {milestone}")
+
+    if epoch > 3:
+        old_ckpt = f"transformer_epoch_{epoch-3}.pt"
+        if os.path.exists(old_ckpt): os.remove(old_ckpt)
+
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
+        patience_counter = 0
         print(f"→ 验证 Loss 改善！保存最佳模型 (Loss: {best_val_loss:.4f})")
         torch.save(model.state_dict(), "transformer_best.pt")
+    else:
+        patience_counter += 1
+        print(f"验证 Loss 未改善 ({patience_counter}/{patience})")
+        if patience_counter >= patience:
+            print(f"早停触发！连续 {patience} 个 Epoch 验证 Loss 未下降，结束训练。")
+            break
 
 # ------------------- 训练结束后画图 -------------------
 epochs_list = list(range(1, len(train_loss_history) + 1))

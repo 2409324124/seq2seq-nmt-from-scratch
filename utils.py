@@ -60,12 +60,12 @@ class Lang:
         for word in sentence:
             self.add_word(word)
 
-def prepare_data(max_length=25, min_freq=2):
+def prepare_data(max_length=25, min_freq=2, split='train'):
     """加载 Multi30k 数据集，构建词表和 pair"""
-    print("正在加载 Multi30k 数据集...")
+    print(f"正在加载 Multi30k 数据集 ({split} split)...")
     dataset = load_dataset("bentrevett/multi30k")
 
-    train_data = dataset['train']
+    data = dataset[split]
 
     input_lang = Lang("de")   # 德语 → 输入
     output_lang = Lang("en")  # 英语 → 输出
@@ -76,7 +76,7 @@ def prepare_data(max_length=25, min_freq=2):
         output_lang.add_word(special)
 
     pairs = []
-    for example in train_data:
+    for example in data:
         de_sent = normalize_string(example['de'])
         en_sent = normalize_string(example['en'])
 

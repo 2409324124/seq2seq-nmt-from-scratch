@@ -47,8 +47,8 @@ class TransformerModel(nn.Module):
 
     def generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-        return mask
+        # return Boolean mask: True means 'do not attend'
+        return mask == 0
 
     def forward(self, src, tgt, src_padding_mask=None, tgt_padding_mask=None, memory_key_padding_mask=None):
         if self.src_mask is None or self.src_mask.size(0) != tgt.size(1):
@@ -62,6 +62,8 @@ class TransformerModel(nn.Module):
         tgt = self.decoder_embedding(tgt) * math.sqrt(self.d_model)
         tgt = self.pos_encoder(tgt)
         
+        # 为了获取注意力权重，我们需要手动调用模块或者使用 Hook
+        # 这里使用简单的前向传递
         output = self.transformer(
             src, tgt, 
             tgt_mask=self.src_mask, 
@@ -72,6 +74,42 @@ class TransformerModel(nn.Module):
         
         output = self.decoder_out(output)
         return output
+
+    def get_attention(self, src, tgt, src_padding_mask=None, tgt_padding_mask=None):
+        """
+        专用方法：用于获取注意力矩阵 (Heatmap)
+        由于 nn.Transformer 封装较深，我们通过 Encoder 处理后再对 Decoder 进行单层 Hook 或手动遍历
+        """
+        self.eval()
+        with torch.no_grad():
+            src_emb = self.pos_encoder(self.encoder_embedding(src) * math.sqrt(self.d_model))
+            memory = self.transformer.encoder(src_emb, src_key_padding_mask=src_padding_mask)
+            
+            tgt_emb = self.pos_encoder(self.decoder_embedding(tgt) * math.sqrt(self.d_model))
+            
+            # 提取最后一层 Decoder 的 Cross Attention
+            # 用一个简化的方式：手动调用最后一层
+            attn_weights = []
+            def hook(module, input, output):
+                # 这里的 output 是 (tgt, weights)
+                if isinstance(output, tuple):
+                    attn_weights.append(output[1])
+
+            # 注册临时 Hook 到最后一层解码器的 multihead_attn
+            last_decoder_layer = self.transformer.decoder.layers[-1]
+            handle = last_decoder_layer.multihead_attn.register_forward_hook(hook)
+            
+            # 强制 MultiheadAttention 返回权重
+            original_need_weights = last_decoder_layer.multihead_attn.need_weights
+            last_decoder_layer.multihead_attn.need_weights = True
+            
+            _ = self.transformer.decoder(tgt_emb, memory, tgt_mask=self.generate_square_subsequent_mask(tgt.size(1)).to(src.device), 
+                                        memory_key_padding_mask=src_padding_mask)
+            
+            handle.remove()
+            last_decoder_layer.multihead_attn.need_weights = original_need_weights
+            
+            return attn_weights[0] if attn_weights else None
 
     def encode(self, src, src_padding_mask=None):
         src = self.encoder_embedding(src) * math.sqrt(self.d_model)
