@@ -10,9 +10,9 @@ import random
 import os
 
 # ------------------- 视觉风格配置 -------------------
-plt.rcParams['font.sans-serif'] = ['SimHei'] # 中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Tahoma', 'Arial'] # 中文字体支持
 plt.rcParams['axes.unicode_minus'] = False
-plt.style.use('ggplot') # 使用更美观的绘图风格
+plt.style.use('bmh') # 使用一种更“硬朗”的绘图风格，比较复古
 
 from utils import prepare_data, TranslationDataset, collate_fn
 from models_transformer import TransformerModel
@@ -312,59 +312,125 @@ def train_pro(model_choice, batch_size, epochs, learning_rate, patience):
     final_status = "🎉 训练任务已成功结束" if not stop_training_flag else "⚠️ 训练已被手动中止"
     yield final_status, epochs if not stop_training_flag else epoch, train_loss_history[-1] if train_loss_history else 0, val_loss_history[-1] if val_loss_history else 0, current_lr, f"{time.time() - start_time:.0f}s", log_content + f"\n\n--- {final_status} ---", create_plot(train_loss_history, val_loss_history)
 
-# ========== 构建极简高级界面 ==========
+# ========== Windows 2000 Retro UI ==========
 css = """
-footer {visibility: hidden}
-.metric-card { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 15px; border: 1px solid rgba(255, 255, 255, 0.1); }
-.status-active { color: #3498db; font-weight: bold; }
+/* 全局背景：Windows 经典灰色 */
+.gradio-container { 
+    background-color: #d4d0c8 !important; 
+    font-family: 'Tahoma', 'MS Sans Serif', 'Arial', sans-serif !important; 
+}
+
+/* 模仿窗口的外框：Outset 边框效果 */
+.win-window { 
+    background-color: #d4d0c8 !important; 
+    border: 2px outset #ffffff !important; 
+    border-right-color: #404040 !important; 
+    border-bottom-color: #404040 !important;
+    padding: 2px !important;
+    box-shadow: none !important;
+    margin-bottom: 10px !important;
+}
+
+/* 蓝色标题栏 */
+.win-titlebar {
+    background: linear-gradient(90deg, #000080 0%, #1084d0 100%) !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 2px 8px !important;
+    margin: -2px -2px 5px -2px !important;
+    font-size: 13px !important;
+    display: flex;
+    align-items: center;
+}
+
+/* 按钮：经典的灰色 3D 按钮 */
+.win-btn {
+    background-color: #d4d0c8 !important;
+    border: 2px outset #ffffff !important;
+    border-right-color: #404040 !important;
+    border-bottom-color: #404040 !important;
+    border-radius: 0 !important;
+    color: black !important;
+    font-weight: normal !important;
+    padding: 2px 12px !important;
+    box-shadow: none !important;
+}
+.win-btn:active {
+    border: 2px inset #ffffff !important;
+    border-right-color: #808080 !important;
+    border-bottom-color: #808080 !important;
+    background-color: #d4d0c8 !important;
+}
+
+/* 输入框与面板：Inset 凹陷效果 */
+.win-inset {
+    background-color: white !important;
+    border: 2px inset #ffffff !important;
+    border-right-color: #dfdfdf !important;
+    border-bottom-color: #dfdfdf !important;
+    border-radius: 0 !important;
+    padding: 5px !important;
+}
+
+/* Metric Card 调整 */
+.stat-card {
+    background-color: #d4d0c8 !important;
+    border: 2px outset #ffffff !important;
+    border-right-color: #404040 !important;
+    border-bottom-color: #404040 !important;
+    padding: 5px !important;
+    margin: 5px !important;
+}
 """
 
-with gr.Blocks(title="Pro Training Console") as demo:
+with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq Training Dashboard [Win2k]") as demo:
     with gr.Row():
-        with gr.Column(scale=4):
-            gr.Markdown("# 🏮 Seq2Seq 专家级训练监控台")
-            status_display = gr.Markdown("🟢 系统已就绪，请输入参数点击开始")
-        with gr.Column(scale=1):
-            gr.Button("开发者: Antigravity", variant="link", interactive=False)
-
+        with gr.Column(elem_classes=["win-window"]):
+            gr.Markdown("<div class='win-titlebar'>🖥️ Seq2Seq 专家级训练监控台 [Version 5.0.2195]</div>")
+            status_display = gr.Markdown("🟢 **系统状态**: 就绪。请输入参数并点击 [启动引擎] 开始任务。")
+    
     with gr.Row():
         # --- 侧边栏：参数面板 ---
-        with gr.Column(scale=1, min_width=300):
-            with gr.Group():
-                gr.Markdown("### ⚙️ 核心参数配置")
-                model_sel = gr.Dropdown(["Transformer", "LSTM"], value="Transformer", label="架构选择")
-                epoch_num = gr.Slider(1, 100, value=30, step=1, label="训练轮次 (Epochs)")
-                batch_size_sel = gr.Radio([32, 64, 128], value=64, label="批处理大小")
-                lr_val = gr.Number(value=0.0001, label="初始学习率 (Initial LR)")
-                patience_val = gr.Number(value=3, label="早停阈值 (Patience)")
-                
-                with gr.Row():
-                    run_btn = gr.Button("🚀 启动引擎", variant="primary")
-                    stop_btn = gr.Button("⏹️ 强行停止", variant="stop")
+        with gr.Column(scale=1, min_width=300, elem_classes=["win-window"]):
+            gr.Markdown("<div class='win-titlebar'>🛠️ 核心参数配置 (Settings)</div>")
             
-            gr.Markdown("---")
-            gr.Markdown("### 📋 实时运行日志")
-            log_box = gr.Textbox(placeholder="等待任务启动...", lines=10, max_lines=15, show_label=False, interactive=False, autoscroll=True)
+            model_sel = gr.Dropdown(["Transformer", "LSTM"], value="Transformer", label="架构选择")
+            epoch_num = gr.Slider(1, 100, value=30, step=1, label="训练轮次 (Epochs)")
+            batch_size_sel = gr.Radio([32, 64, 128], value=64, label="批处理大小")
+            lr_val = gr.Number(value=0.0001, label="初始学习率 (Initial LR)")
+            patience_val = gr.Number(value=3, label="早停阈值 (Patience)")
+            
+            with gr.Row():
+                run_btn = gr.Button("🚀 启动引擎", variant="primary", elem_classes=["win-btn"])
+                stop_btn = gr.Button("⏹️ 强行停止", variant="stop", elem_classes=["win-btn"])
+            
+            gr.Markdown("<div class='win-titlebar'>📝 实时运行日志 (Log)</div>")
+            log_box = gr.Textbox(placeholder="等待任务启动...", lines=10, max_lines=15, show_label=False, interactive=False, autoscroll=True, elem_classes=["win-inset"])
 
         # --- 主面板：数据可视化 ---
         with gr.Column(scale=3):
             # 1. 顶部指标卡片
             with gr.Row():
-                with gr.Column(elem_classes="metric-card"):
-                    metric_epoch = gr.Number(label="当前 Epoch", value=0, precision=0)
-                with gr.Column(elem_classes="metric-card"):
-                    metric_train = gr.Number(label="训练 Loss", value=0.000, precision=4)
-                with gr.Column(elem_classes="metric-card"):
-                    metric_val = gr.Number(label="验证 Loss", value=0.000, precision=4)
-                with gr.Column(elem_classes="metric-card"):
-                    metric_lr = gr.Number(label="当前 LR", value=0.0000, precision=6)
-                with gr.Column(elem_classes="metric-card"):
-                    metric_time = gr.Textbox(label="已耗时", value="0s")
+                with gr.Column(elem_classes=["stat-card"]):
+                    gr.Markdown("📂 **当前 Epoch**")
+                    metric_epoch = gr.Number(value=0, precision=0, show_label=False)
+                with gr.Column(elem_classes=["stat-card"]):
+                    gr.Markdown("📉 **训练 Loss**")
+                    metric_train = gr.Number(value=0.000, precision=4, show_label=False)
+                with gr.Column(elem_classes=["stat-card"]):
+                    gr.Markdown("🧪 **验证 Loss**")
+                    metric_val = gr.Number(value=0.000, precision=4, show_label=False)
+                with gr.Column(elem_classes=["stat-card"]):
+                    gr.Markdown("⚡ **当前 LR**")
+                    metric_lr = gr.Number(value=0.0000, precision=6, show_label=False)
+                with gr.Column(elem_classes=["stat-card"]):
+                    gr.Markdown("⏱️ **已耗时**")
+                    metric_time = gr.Textbox(value="0s", show_label=False)
             
             # 2. 核心图表区
-            with gr.Column(variant="panel"):
-                gr.Markdown("### 📉 损失收敛动态追踪")
-                plot_box = gr.Plot(show_label=False)
+            with gr.Column(elem_classes=["win-window"]):
+                gr.Markdown("<div class='win-titlebar'>📊 损失收敛动态追踪 (Convergence Plot)</div>")
+                plot_box = gr.Plot(show_label=False, elem_classes=["win-inset"])
 
     # 交互绑定
     training_event = run_btn.click(
@@ -381,4 +447,4 @@ with gr.Blocks(title="Pro Training Console") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(inbrowser=True, theme=gr.themes.Soft(), css=css)
+    demo.launch(share=True)

@@ -13,6 +13,11 @@ from models import EncoderLSTM, AttnDecoderLSTM
 from torch.utils.data import DataLoader
 import sacrebleu
 
+# ------------------- 视觉风格配置 -------------------
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Tahoma', 'Arial']
+plt.rcParams['axes.unicode_minus'] = False
+plt.style.use('bmh')
+
 # ------------------- 环境配置 -------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 VOCAB_CACHE = "vocab_cache.pkl"
@@ -206,46 +211,116 @@ def run_batch_eval(num_samples):
 
 # ------------------- UI 界面 -------------------
 
-# 动态 CSS
+# ------------------- Windows 2000 Retro UI -------------------
 css = """
-footer {visibility: hidden}
-.gradio-container {background-color: #f8f9fa; font-family: 'Segoe UI', system-ui, sans-serif;}
-.pro-card { border-radius: 12px; border: 1px solid #e0e0e0; background: white; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-.status-msg { font-weight: 600; color: #2e7d32; }
+/* 全局背景：Windows 经典灰色 */
+.gradio-container { 
+    background-color: #d4d0c8 !important; 
+    font-family: 'Tahoma', 'MS Sans Serif', 'Arial', sans-serif !important; 
+}
+
+/* 模仿窗口的外框：Outset 边框效果 */
+.win-window { 
+    background-color: #d4d0c8 !important; 
+    border: 2px outset #ffffff !important; 
+    border-right-color: #404040 !important; 
+    border-bottom-color: #404040 !important;
+    padding: 2px !important;
+    box-shadow: none !important;
+    margin-bottom: 10px !important;
+}
+
+/* 蓝色标题栏 */
+.win-titlebar {
+    background: linear-gradient(90deg, #000080 0%, #1084d0 100%) !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 2px 8px !important;
+    margin: -2px -2px 5px -2px !important;
+    font-size: 13px !important;
+    display: flex;
+    align-items: center;
+}
+
+/* 按钮：经典的灰色 3D 按钮 */
+.win-btn {
+    background-color: #d4d0c8 !important;
+    border: 2px outset #ffffff !important;
+    border-right-color: #404040 !important;
+    border-bottom-color: #404040 !important;
+    border-radius: 0 !important;
+    color: black !important;
+    font-weight: normal !important;
+    padding: 2px 12px !important;
+    box-shadow: none !important;
+}
+.win-btn:active {
+    border: 2px inset #ffffff !important;
+    border-right-color: #808080 !important;
+    border-bottom-color: #808080 !important;
+    background-color: #d4d0c8 !important;
+}
+
+/* 输入框与面板：Inset 凹陷效果 */
+.win-inset {
+    background-color: white !important;
+    border: 2px inset #ffffff !important;
+    border-right-color: #dfdfdf !important;
+    border-bottom-color: #dfdfdf !important;
+    border-radius: 0 !important;
+    padding: 5px !important;
+}
+
+/* Tabs 样式优化 */
+.tabs { background: transparent !important; }
+.tab-nav { border-bottom: 2px solid #808080 !important; }
+.tab-nav button.selected { 
+    background-color: #d4d0c8 !important; 
+    border: 2px outset #ffffff !important; 
+    border-bottom: none !important;
+    margin-bottom: -2px !important;
+}
+
+.status-msg { font-weight: bold; color: #000080; }
 """
 
-with gr.Blocks(theme=gr.themes.Soft(), css=css) as demo:
-    gr.Markdown("# 🚀 NMT 翻译专家工作站 (Pro Edition)")
-    gr.Markdown("验证模型质量、观察注意力分配并进行 BLEU 量化测试。")
+with gr.Blocks(theme=gr.themes.Base(), css=css, title="NMT Pro Station [Win2k]") as demo:
+    with gr.Row():
+        with gr.Column(elem_classes=["win-window"]):
+            gr.Markdown("<div class='win-titlebar'>🚀 NMT 翻译专家工作站 [Version 1.0.2400]</div>")
+            gr.Markdown("验证模型质量、观察注意力分配并进行 BLEU 量化测试。")
     
     with gr.Row():
-        with gr.Column(scale=1):
+        # 左侧控制面板
+        with gr.Column(scale=1, elem_classes=["win-window"]):
+            gr.Markdown("<div class='win-titlebar'>🔩 模型加载与配置</div>")
             arch_sel = gr.Dropdown(["Transformer", "LSTM"], label="1. 选择架构", value="Transformer")
             ckpt_sel = gr.Dropdown(get_checkpoints(), label="2. 选择权重文件")
-            load_btn = gr.Button("🔌 加载/更换模型", variant="primary")
+            load_btn = gr.Button("🔌 加载/更换模型", variant="primary", elem_classes=["win-btn"])
             status_msg = gr.Markdown("⚠️ 等待加载模型...", elem_classes=["status-msg"])
             
-            with gr.Accordion("高级解码参数", open=False):
+            with gr.Accordion("高级解码参数 (Advanced)", open=False):
                 search_mode = gr.Radio(["Greedy", "Beam Search"], label="搜索策略", value="Greedy")
                 beam_sz = gr.Slider(1, 10, value=3, step=1, label="Beam Size")
                 
         with gr.Column(scale=2):
-            with gr.Tabs():
-                with gr.TabItem("🎯 交互翻译"):
-                    with gr.Group():
-                        input_box = gr.Textbox(label="输入德语", placeholder="在此输入德语句子...", lines=3)
-                        trans_btn = gr.Button("✨ 开始翻译", variant="secondary")
+            with gr.Tabs(elem_classes=["win-window"]):
+                with gr.TabItem("🎯 交互翻译 (Live)"):
+                    gr.Markdown("<div class='win-titlebar'>💬 德英即时翻译引擎</div>")
+                    input_box = gr.Textbox(label="输入德语", placeholder="在此输入德语句子...", lines=3, elem_classes=["win-inset"])
+                    trans_btn = gr.Button("✨ 开始翻译 (Translate)", variant="secondary", elem_classes=["win-btn"])
                     
                     with gr.Row():
                         with gr.Column():
-                            output_box = gr.Textbox(label="翻译结果", interactive=False, lines=3)
+                            output_box = gr.Textbox(label="翻译结果 (Output)", interactive=False, lines=3, elem_classes=["win-inset"])
                         with gr.Column():
-                            attn_plot = gr.Plot(label="注意力热图 (仅 Greedy 模式)")
+                            attn_plot = gr.Plot(label="注意热图", elem_classes=["win-inset"])
                             
-                with gr.TabItem("📊 批量评估"):
-                    num_samples = gr.Number(value=100, label="评估样本数 (前 N 条)")
-                    eval_btn = gr.Button("📐 启动 BLEU 测评")
-                    eval_res = gr.Textbox(label="测评报告", lines=5)
+                with gr.TabItem("📊 批量评估 (Eval)"):
+                    gr.Markdown("<div class='win-titlebar'>📐 BLEU 质量量化评测</div>")
+                    num_samples = gr.Number(value=100, label="评估样本数 (Sample Size)")
+                    eval_btn = gr.Button("📐 启动测评 (Run Eval)", elem_classes=["win-btn"])
+                    eval_res = gr.Textbox(label="测评报告 (Report)", lines=8, elem_classes=["win-inset"])
 
     # 事件处理
     load_btn.click(load_selected_model, [arch_sel, ckpt_sel], status_msg)
