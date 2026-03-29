@@ -397,8 +397,13 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq Training Dashboar
             model_sel = gr.Dropdown(["Transformer", "LSTM"], value="Transformer", label="架构选择")
             epoch_num = gr.Slider(1, 100, value=30, step=1, label="训练轮次 (Epochs)")
             batch_size_sel = gr.Radio([32, 64, 128], value=64, label="批处理大小")
-            lr_val = gr.Number(value=0.0001, label="初始学习率 (Initial LR)")
-            patience_val = gr.Number(value=3, label="早停阈值 (Patience)")
+            lr_val = gr.Dropdown(
+                choices=[0.001, 0.0005, 0.0001, 0.00005, 0.00001], 
+                value=0.0001, 
+                label="初始学习率 (Initial LR)",
+                info="建议 1e-4 为最优平衡点"
+            )
+            patience_val = gr.Number(value=3, label="早停阈值 (Patience)", minimum=1, precision=0)
             
             with gr.Row():
                 run_btn = gr.Button("🚀 启动引擎", variant="primary", elem_classes=["win-btn"])
