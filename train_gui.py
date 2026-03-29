@@ -65,6 +65,14 @@ def create_plot(train_loss, val_loss):
     plt.tight_layout()
     return fig
 
+def check_env_status(selected_env):
+    """ 检查选择的环境是否为当前运行环境 """
+    active_env = utils_sys.get_conda_env()
+    if selected_env == active_env:
+        return f"<div class='sys-status'>🚩 当前活跃: {active_env} (✔️ Healthy)</div>"
+    else:
+        return f"<div class='sys-status' style='color:#800000'>⚠️ 环境不匹配: {selected_env}<br>(请在终端切换环境后重启应用)</div>"
+
 # ========== 核心训练生成器 (Modular Pro) ==========
 def train_pro(model_choice, batch_size, epochs, learning_rate, patience):
     global stop_training_flag
@@ -191,6 +199,14 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k
             
             arch_list = get_available_archs()
             model_sel = gr.Dropdown(choices=arch_list, value=arch_list[0], label="架构自动探测")
+            
+            # --- 新增: Conda 环境探测与选择 ---
+            gr.Markdown("<div class='win-titlebar'>📦 系统环境 (System Env)</div>")
+            conda_list = utils_sys.get_conda_envs()
+            current_env = utils_sys.get_conda_env()
+            env_dropdown = gr.Dropdown(choices=conda_list, value=current_env, label="Conda 环境列表 (Select Info Only)")
+            env_msg = gr.Markdown(f"<div class='sys-status'>🚩 当前活跃: {current_env} (✔️ Healthy)</div>")
+            
             epoch_num = gr.Slider(1, 100, value=30, step=1, label="训练轮次")
             batch_size_sel = gr.Radio([32, 64, 128], value=64, label="批处理大小")
             lr_val = gr.Dropdown(choices=["1e-3", "5e-4", "1e-4", "5e-5", "1e-5"], value="1e-4", label="初始学习率", allow_custom_value=False)
@@ -225,6 +241,9 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k
             with gr.Column(elem_classes=["win-window"]):
                 gr.Markdown("<div class='win-titlebar'>📈 实时指标收敛监控</div>")
                 plot_box = gr.Plot(show_label=False, elem_classes=["win-inset"])
+
+    # 事件绑定
+    env_dropdown.change(fn=check_env_status, inputs=[env_dropdown], outputs=[env_msg])
 
     training_event = run_btn.click(
         fn=train_pro, 
