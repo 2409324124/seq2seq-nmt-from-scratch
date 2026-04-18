@@ -14,25 +14,10 @@ def get_cuda_status():
         return f"CUDA Ready: {device_name} ({vram:.1f}GB)"
     return "CPU Mode (No GPU detected)"
 
-def get_conda_envs():
-    """获取所有可用的 Conda 环境列表"""
-    import subprocess
-    import json
-    try:
-        # 使用 json 格式获取更准确的数据
-        output = subprocess.check_output("conda env list --json", shell=True).decode()
-        data = json.loads(output)
-        # 获取环境名 (优先使用 name，没有的用路径代替)
-        envs = []
-        for path in data.get('envs', []):
-            name = os.path.basename(path)
-            # 处理 base 环境
-            if path == data.get('envs')[0] and "envs" not in path:
-                name = "base"
-            envs.append(name)
-        return envs
-    except:
-        return ["base", "seq2seq"]
+def get_python_version():
+    """获取简短的 Python 版本号"""
+    import sys
+    return f"Python {sys.version.split()[0]}"
 
 def get_system_summary():
     """返回用于 GUI 状态栏的一行摘要"""

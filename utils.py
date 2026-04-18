@@ -42,10 +42,11 @@ class Lang:
         self.index2word = {}
         self.n_words = 0
 
-        # 立即添加特殊 token（索引固定 0,1,2）
+        # 立即添加特殊 token（索引固定 0,1,2,3）
         self.add_word("<SOS>")
         self.add_word("<EOS>")
         self.add_word("<PAD>")
+        self.add_word("<MASK>")
 
     def add_word(self, word):
         """添加单个词"""
@@ -71,7 +72,7 @@ def prepare_data(max_length=25, min_freq=2, split='train'):
     output_lang = Lang("en")  # 英语 → 输出
 
     # 强制确保特殊 token 存在（保险）
-    for special in ["<SOS>", "<EOS>", "<PAD>"]:
+    for special in ["<SOS>", "<EOS>", "<PAD>", "<MASK>"]:
         input_lang.add_word(special)
         output_lang.add_word(special)
 
@@ -102,6 +103,7 @@ def prepare_data(max_length=25, min_freq=2, split='train'):
     print(" <SOS> index:", input_lang.word2index.get("<SOS>", "缺失"))
     print(" <EOS> index:", input_lang.word2index.get("<EOS>", "缺失"))
     print(" <PAD> index:", input_lang.word2index.get("<PAD>", "缺失"))
+    print(" <MASK> index:", input_lang.word2index.get("<MASK>", "缺失"))
 
     return input_lang, output_lang, pairs
 

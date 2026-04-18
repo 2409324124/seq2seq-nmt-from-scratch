@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import os
+import traceback
 
 # ------------------- 视觉风格配置 -------------------
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Tahoma', 'Arial'] # 中文字体支持
@@ -19,11 +20,15 @@ from utils import prepare_data, TranslationDataset, collate_fn
 # 动态加载引擎
 from engines.transformer_engine import TransformerEngine
 from engines.lstm_engine import LSTMEngine
+from engines.bert_engine import BertEngine
+from engines.gpt_engine import GptEngine
 
 # 建立引擎映射表
 ENGINE_MAP = {
     "Transformer": TransformerEngine,
-    "LSTM": LSTMEngine
+    "Lstm": LSTMEngine,
+    "Bert": BertEngine,
+    "Gpt": GptEngine
 }
 
 def get_available_archs():
@@ -50,6 +55,7 @@ def request_stop():
 
 def create_plot(train_loss, val_loss):
     """ 创建高级 Matplotlib 曲线图 """
+    plt.close('all')  # 关闭之前的绘图以释放内存并解决警告
     if not train_loss: return None
     fig, ax = plt.subplots(figsize=(10, 5), dpi=100)
     epochs = range(1, len(train_loss) + 1)
@@ -64,14 +70,6 @@ def create_plot(train_loss, val_loss):
     ax.legend()
     plt.tight_layout()
     return fig
-
-def check_env_status(selected_env):
-    """ 检查选择的环境是否为当前运行环境 """
-    active_env = utils_sys.get_conda_env()
-    if selected_env == active_env:
-        return f"<div class='sys-status'>🚩 当前活跃: {active_env} (✔️ Healthy)</div>"
-    else:
-        return f"<div class='sys-status' style='color:#800000'>⚠️ 环境不匹配: {selected_env}<br>(请在终端切换环境后重启应用)</div>"
 
 # ========== 核心训练生成器 (Modular Pro) ==========
 def train_pro(model_choice, batch_size, epochs, learning_rate, patience):
@@ -99,19 +97,23 @@ def train_pro(model_choice, batch_size, epochs, learning_rate, patience):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=collate_fn)
         log_content += f"\n[+] 数据就绪: 训练集 {train_size} / 验证集 {val_size}"
+        # 强制中间刷新一次 UI，确保用户看到“数据就绪”
+        yield ("🔄 正在初始化引擎...", 0, 0.0, 0.0, learning_rate, "0s", log_content, None)
     except Exception as e:
         yield f"❌ 数据加载失败: {str(e)}", 0, 0.0, 0.0, learning_rate, "0s", log_content, None
         return
 
     # 2. 引擎初始化
-    if model_choice not in ENGINE_MAP:
-        yield f"❌ 未知架构: {model_choice}", 0, 0.0, 0.0, learning_rate, "0s", log_content, None
+    arch_key = model_choice.capitalize() # 统一标准化 Key
+    if arch_key not in ENGINE_MAP:
+        yield f"❌ 未知架构: {arch_key}", 0, 0.0, 0.0, learning_rate, "0s", log_content, None
         return
 
-    engine = ENGINE_MAP[model_choice](device)
+    engine = ENGINE_MAP[arch_key](device)
     engine.initialize_model(input_lang.n_words, output_lang.n_words, learning_rate)
     
-    log_content += f"\n[+] {model_choice} 训练引擎已启动。"
+    log_content += f"\n[+] {arch_key} 训练引擎已启动。"
+    yield ("🔥 引擎就绪，开始训练...", 0, 0.0, 0.0, learning_rate, "0s", log_content, None)
     current_lr = learning_rate
     train_loss_history = []
     val_loss_history = []
@@ -120,53 +122,62 @@ def train_pro(model_choice, batch_size, epochs, learning_rate, patience):
     start_time = time.time()
     
     # 3. 训练主循环
-    for epoch in range(1, epochs + 1):
-        if stop_training_flag: break
-        
-        # --- 训练阶段 ---
-        epoch_start = time.time()
-        for batch_loss in engine.train_one_epoch(train_loader, epoch):
+    try:
+        for epoch in range(1, epochs + 1):
             if stop_training_flag: break
-            elapsed = time.time() - start_time
-            yield (
-                f"🔥 正在训练 Epoch {epoch}/{epochs}...", 
-                epoch, 
-                round(batch_loss, 4), 
-                (val_loss_history[-1] if val_loss_history else 0.0),
-                current_lr,
-                f"{int(elapsed)}s",
-                log_content + f"\n[Epoch {epoch}] Current Loss: {batch_loss:.4f}",
-                create_plot(train_loss_history + [batch_loss], val_loss_history)
-            )
-        
-        if stop_training_flag: break
-        train_loss_history.append(batch_loss)
-        
-        # --- 验证阶段 ---
-        val_loss = engine.validate(val_loader)
-        val_loss_history.append(val_loss)
-        
-        # 更新调度器
-        if engine.scheduler:
-            engine.scheduler.step(val_loss)
-            current_lr = engine.optimizer.param_groups[0]['lr']
-        
-        # --- 存档与早停逻辑 ---
-        log_content += f"\n[✔] Epoch {epoch} 完成! Train Loss: {batch_loss:.4f} | Val Loss: {val_loss:.4f}"
-        
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            ckpt_path = f"{model_choice.lower()}_best_pro.pt"
-            engine.save_checkpoint(ckpt_path, epoch, val_loss)
-            log_content += f" (🌟 最佳存档已保存: {ckpt_path})"
-            patience_counter = 0
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                log_content += f"\n🛑 早停触发: 连续 {patience} 轮未优化。"
-                break
-        
-        yield (f"🔍 Epoch {epoch} 验证结束", epoch, batch_loss, val_loss, current_lr, f"{int(time.time()-start_time)}s", log_content, create_plot(train_loss_history, val_loss_history))
+            
+            # --- 训练阶段 ---
+            epoch_start = time.time()
+            for i, batch_loss in enumerate(engine.train_one_epoch(train_loader, epoch)):
+                if stop_training_flag: break
+                
+                # 限制 UI 刷新频率（每 30 个 batch 刷新一次），极大幅度提升训练效率！
+                if i % 30 == 0:
+                    elapsed = time.time() - start_time
+                    yield (
+                        f"🔥 正在训练 Epoch {epoch}/{epochs} (Batch {i})...", 
+                        epoch, 
+                        round(batch_loss, 4), 
+                        (val_loss_history[-1] if val_loss_history else 0.0),
+                        current_lr,
+                        f"{int(elapsed)}s",
+                        log_content + f"\n[Epoch {epoch}] Batch {i} | Loss: {batch_loss:.4f}",
+                        create_plot(train_loss_history + [batch_loss], val_loss_history)
+                    )
+            
+            if stop_training_flag: break
+            train_loss_history.append(batch_loss)
+            
+            # --- 验证阶段 ---
+            val_loss = engine.validate(val_loader)
+            val_loss_history.append(val_loss)
+            
+            # 更新调度器
+            if engine.scheduler:
+                engine.scheduler.step(val_loss)
+                current_lr = engine.optimizer.param_groups[0]['lr']
+            
+            # --- 存档与早停逻辑 ---
+            log_content += f"\n[✔] Epoch {epoch} 完成! Train Loss: {batch_loss:.4f} | Val Loss: {val_loss:.4f}"
+            
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                ckpt_path = f"{model_choice.lower()}_best_pro.pt"
+                engine.save_checkpoint(ckpt_path, epoch, val_loss)
+                log_content += f" (🌟 最佳存档已保存: {ckpt_path})"
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    log_content += f"\n🛑 早停触发: 连续 {patience} 轮未优化。"
+                    break
+            
+            yield (f"🔍 Epoch {epoch} 验证结束", epoch, batch_loss, val_loss, current_lr, f"{int(time.time()-start_time)}s", log_content, create_plot(train_loss_history, val_loss_history))
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        log_content += f"\n\n❌ 引擎内部崩溃! 错误详情:\n{error_trace}"
+        yield "❌ 引擎崩溃", epoch if 'epoch' in locals() else 0, 0.0, 0.0, current_lr, "0s", log_content, None
+        return
 
     final_msg = "✅ 任务顺利完成" if not stop_training_flag else "🛑 任务已手动中断"
     yield final_msg, epoch, train_loss_history[-1], val_loss_history[-1], current_lr, f"{int(time.time()-start_time)}s", log_content, create_plot(train_loss_history, val_loss_history)
@@ -183,7 +194,7 @@ css = """
 .sys-status { font-family: 'Consolas', monospace; font-size: 11px; color: #000080; background: #c0c0c0; padding: 2px 8px; border: 1px inset #fff; margin-top: 5px; }
 """
 
-with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k]") as demo:
+with gr.Blocks(title="Seq2Seq AI Pro Hub [Win2k]") as demo:
     # 顶部状态栏
     with gr.Row():
         with gr.Column(elem_classes=["win-window"]):
@@ -200,16 +211,9 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k
             arch_list = get_available_archs()
             model_sel = gr.Dropdown(choices=arch_list, value=arch_list[0], label="架构自动探测")
             
-            # --- 新增: Conda 环境探测与选择 ---
-            gr.Markdown("<div class='win-titlebar'>📦 系统环境 (System Env)</div>")
-            conda_list = utils_sys.get_conda_envs()
-            current_env = utils_sys.get_conda_env()
-            env_dropdown = gr.Dropdown(choices=conda_list, value=current_env, label="Conda 环境列表 (Select Info Only)")
-            env_msg = gr.Markdown(f"<div class='sys-status'>🚩 当前活跃: {current_env} (✔️ Healthy)</div>")
-            
             epoch_num = gr.Slider(1, 100, value=30, step=1, label="训练轮次")
             batch_size_sel = gr.Radio([32, 64, 128], value=64, label="批处理大小")
-            lr_val = gr.Dropdown(choices=["1e-3", "5e-4", "1e-4", "5e-5", "1e-5"], value="1e-4", label="初始学习率", allow_custom_value=False)
+            lr_val = gr.Dropdown(choices=["0.001", "0.0005", "0.0001", "0.00005", "0.00001"], value="0.001", label="初始学习率 (decimal)", allow_custom_value=False)
             patience_val = gr.Number(value=3, label="早停阈值", minimum=1, precision=0)
             
             with gr.Row():
@@ -243,8 +247,6 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k
                 plot_box = gr.Plot(show_label=False, elem_classes=["win-inset"])
 
     # 事件绑定
-    env_dropdown.change(fn=check_env_status, inputs=[env_dropdown], outputs=[env_msg])
-
     training_event = run_btn.click(
         fn=train_pro, 
         inputs=[model_sel, batch_size_sel, epoch_num, lr_val, patience_val],
@@ -253,4 +255,8 @@ with gr.Blocks(theme=gr.themes.Base(), css=css, title="Seq2Seq AI Pro Hub [Win2k
     stop_btn.click(fn=request_stop, outputs=[log_box], cancels=[training_event])
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(
+        share=True, 
+        theme=gr.themes.Base(), 
+        css=css
+    )
